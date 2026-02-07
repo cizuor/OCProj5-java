@@ -1,0 +1,70 @@
+name: CI Pipeline # nom qui apparait dans l'onglet actions de github
+
+
+# déclencheur , chaque pull ou push déclenche les test
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  test:
+    name: Run Unit Tests  # nom du job visible dans l'interface.
+    runs-on: ubuntu-latest # demande a github une machine virtuel ubuntu
+
+    steps:
+      # Récupération du code
+      - name: Checkout code   # nom d'etape
+        uses: actions/checkout@v4  # commande copy code sur la machine virtuelle github
+
+      #execution de plusieur ligne pour obtenir un nom choerent
+      - name: Set Project Name
+        run: |
+          if [ -f "build.gradle" ]; then
+            echo "REPORT_NAME=Java-Backend" >> $GITHUB_ENV
+          elif [ -f "package.json" ]; then
+            echo "REPORT_NAME=Angular-Frontend" >> $GITHUB_ENV
+          else
+            echo "REPORT_NAME=App" >> $GITHUB_ENV
+          fi
+
+      # Installation de Java 
+      - name: Set up JDK 21
+        if: hashFiles('build.gradle') != ''
+        uses: actions/setup-java@v4  # commande installation Java 
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle' # Gestion automatique du cache pour accélérer les builds
+
+      # Installation de Node.js 
+      - name: Set up Node.js
+        if: hashFiles('package.json') != ''
+        uses: actions/setup-node@v4 # commande installation Node 
+        with:
+          node-version: '20'
+          cache: 'npm' # Gestion automatique du cache NPM
+
+      # Exécution du script de test 
+      - name: Run Custom Test Script
+        run: |
+          chmod +x run-test.sh
+          ./run-test.sh
+
+      # Publication du rapport de test (Intégration au workflow)
+      # Cette action lit les fichiers XML dans test-results/ et crée un joli résumé
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4 # rend les resultat des rapport visible
+        if: always() # publie le rapport même si les tests échouent
+        with:
+          report_paths: 'test-results/*.xml' # lieu on sont les resultat des test
+          check_name: '${{ env.REPORT_NAME }} Test Report'
+
+      # Archivage des rapports (Optionnel, pour téléchargement manuel)
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ env.REPORT_NAME }}-reports
+          path: test-results/*.xml
