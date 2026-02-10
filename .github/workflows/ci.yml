@@ -100,6 +100,11 @@ jobs:
       - name: Semantic Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4 #install node et lance semantic-release
+        with: # instal les plugin utile pour nomer les version dans le code
+          extra_plugins: |
+            @semantic-release/git
+            @semantic-release/npm
+            @google/semantic-release-replace-plugin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
