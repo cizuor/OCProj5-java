@@ -8,11 +8,19 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# parametrage
+env:
+  JAVA_VERSION: '21'
+  NODE_VERSION: '20'
+  TEST_RESULTS_DIR: test-results
+
 # permission necessaire pour le docker
 permissions:
-  contents: read
+  contents: write
   packages: write
   checks: write
+  issues: write
+  pull-requests: write
 
 jobs:
   test:
@@ -40,7 +48,7 @@ jobs:
         if: hashFiles('build.gradle') != ''
         uses: actions/setup-java@v4  # commande installation Java 
         with:
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle' # Gestion automatique du cache pour accélérer les builds
 
@@ -49,7 +57,7 @@ jobs:
         if: hashFiles('package.json') != ''
         uses: actions/setup-node@v4 # commande installation Node 
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm' # Gestion automatique du cache NPM
 
       # Exécution du script de test 
@@ -64,7 +72,7 @@ jobs:
         uses: mikepenz/action-junit-report@v4 # rend les resultat des rapport visible
         if: always() # publie le rapport même si les tests échouent
         with:
-          report_paths: 'test-results/*.xml' # lieu on sont les resultat des test
+          report_paths: '${{ env.TEST_RESULTS_DIR }}/*.xml' # lieu on sont les resultat des test
           check_name: '${{ env.REPORT_NAME }} Test Report'
 
       # Archivage des rapports (Optionnel, pour téléchargement manuel)
@@ -73,10 +81,32 @@ jobs:
         if: always()
         with:
           name: ${{ env.REPORT_NAME }}-reports
-          path: test-results/*.xml
+          path: ${{ env.TEST_RESULTS_DIR }}/*.xml
+
+  release : 
+    name: Semantic Release
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # pour obtenir tout l'historique
+      
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4 #install node et lance semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
   build:
     name: Build and Push Docker Image
-    needs: test # se lance après les test s'il on réussi 
+    needs: release # se lance après les test s'il on réussi 
     runs-on: ubuntu-latest
     # on recré les variable job car c'est un nouveau job
     steps:
@@ -108,6 +138,7 @@ jobs:
           tags: |
             type=raw,value=${{ github.ref_name }}-${{ github.sha }}
             type=raw,value=latest
+            type=raw,value=${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
 
       # crée l'image et la pousse    
       - name: Build and push Docker image
