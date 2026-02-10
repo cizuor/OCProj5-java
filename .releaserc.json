@@ -4,18 +4,22 @@
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
-      "@semantic-release/npm",
+      "@google/semantic-release-replace-plugin",
       {
-        "npmPublish": false
+        "replacements": [
+          {
+            "files": ["build.gradle"],
+            "from": "version = '.*'",
+            "to": "version = '${nextRelease.version}'",
+            "countMatches": true
+          }
+        ]
       }
     ],
-    "@semantic-release/github",
-    [
-      "@semantic-release/git",
-      {
-        "assets": ["package.json", "package-lock.json", "build.gradle"],
-        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-      }
-    ]
+    ["@semantic-release/git", {
+      "assets": ["build.gradle"],
+      "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+    }],
+    "@semantic-release/github"
   ]
 }
